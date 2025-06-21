@@ -1,40 +1,111 @@
-import os
-import json
 import base64
-from glob import glob
+import random
 import shelve
+import time
 
-#asumsi, hanya ada player 1, 2 , 3
 class PlayerServerInterface:
     def __init__(self):
-        self.players = shelve.open('g.db',writeback=True)
+        self.players = shelve.open('g.db', writeback=True)
         self.players['1']= "100,100"
         self.players['2']= "100,100"
         self.players['3']= "100,100"
+        self.players_face=dict()
+        self.players_face['1']=base64.b64encode(open('images/red.png',"rb").read())
+        self.players_face['2']=base64.b64encode(open('images/pink.png',"rb").read())
+        self.players_face['3']=base64.b64encode(open('images/cyan.png',"rb").read())
+        self.ready_status = dict()
+        self.active_players = set()
+        self.projectiles = []
+        self.projectile_last_spawn = time.time()
 
-    def set_location(self,params=[]):
+
+    def get_all_players(self, params=[]):
+        return dict(status='OK', players=list(self.players_face.keys()))
+
+    def get_players_face(self, params=[]):
         pnum = params[0]
-        x = params[1]
-        y = params[2]
         try:
-            self.players[pnum]=f"{x},{y}"
-            self.players.sync()
-            return dict(status='OK', player=pnum)
-        except Exception as e:
+            return dict(status='OK', face=self.players_face[pnum].decode())
+        except Exception:
             return dict(status='ERROR')
 
-    def get_location(self,params=[]):
-        pnum = params[0]
+    def set_location(self, params=[]):
+        pnum, x, y = params[0], params[1], params[2]
         try:
-            return dict(status='OK',location=self.players[pnum])
-        except Exception as ee:
+            if pnum in self.active_players:
+                self.players[pnum] = f"{x},{y}"
+                self.players.sync()
+                return dict(status='OK', player=pnum)
+            return dict(status='ERROR', message='Player not active')
+        except Exception:
             return dict(status='ERROR')
 
+    def get_location(self, params=[]):
+        pnum = params[0]
+        try:
+            return dict(status='OK', location=self.players[pnum])
+        except Exception:
+            return dict(status='ERROR')
 
+    # NOTES: ini testing aja
+    def join_game(self, params=[]):
+        pnum = params[0]
+        if pnum in self.active_players:
+            return dict(status='ERROR', message='Player already in use')
+        self.active_players.add(pnum)
+        return dict(status='OK', player=pnum)
 
-if __name__=='__main__':
+    def set_ready(self, params=[]):
+        pnum = params[0]
+        if pnum in self.active_players:
+            self.ready_status[pnum] = True
+            return dict(status='OK')
+        return dict(status='ERROR')
+
+    def is_ready(self, params=[]):
+        if not self.active_players:
+            return dict(status='OK', ready=False, player_count=0)
+        ready_count = sum(1 for p in self.active_players if self.ready_status.get(p, False))
+        return dict(status='OK', ready=(ready_count == len(self.active_players)), player_count=len(self.active_players))
+
+    def spawn_projectile(self):
+        now = time.time()
+        if now - self.projectile_last_spawn >= 3:
+            spawn = random.randint(1, 5)
+
+            for _ in range(spawn):
+                edge = random.choice(['top', 'bottom', 'left', 'right'])
+                if edge == 'top':
+                    x, y = random.randint(0, 640), 0
+                    dx = random.randint(-5, 5)
+                    dy = 10
+                elif edge == 'bottom':
+                    x, y = random.randint(0, 640), 480
+                    dx = random.randint(-5, 5)
+                    dy = -10
+                elif edge == 'left':
+                    x, y = 0, random.randint(0, 480)
+                    dx = 10
+                    dy = random.randint(-5, 5)
+                else:
+                    x, y = 640, random.randint(0, 480)
+                    dx = -10
+                    dy = random.randint(-5, 5)
+
+                self.projectiles.append({"x": x, "y": y, "dx": dx, "dy": dy})
+
+            self.projectile_last_spawn = now
+
+    def update_projectiles(self):
+        self.spawn_projectile()
+        for p in self.projectiles:
+            p['x'] += p['dx']
+            p['y'] += p['dy']
+        self.projectiles = [p for p in self.projectiles if -100 <= p['x'] <= 740 and -100 <= p['y'] <= 580]
+
+    def get_projectiles(self, params=[]):
+        self.update_projectiles()
+        return dict(status='OK', data=self.projectiles)
+
+if __name__ == '__main__':
     p = PlayerServerInterface()
-    p.set_location(['1',100,100])
-    print(p.get_location('1'))
-    p.set_location(['2',120,100])
-    print(p.get_location('2'))
