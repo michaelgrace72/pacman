@@ -6,26 +6,26 @@ import time
 class PlayerServerInterface:
     def __init__(self):
         self.players = shelve.open('g.db', writeback=True)
-        self.players['1']= "100,100"
-        self.players['2']= "100,100"
-        self.players['3']= "100,100"
         self.players_face=dict()
-        self.players_face['1']=base64.b64encode(open('images/red.png',"rb").read())
-        self.players_face['2']=base64.b64encode(open('images/pink.png',"rb").read())
-        self.players_face['3']=base64.b64encode(open('images/cyan.png',"rb").read())
         self.ready_status = dict()
         self.active_players = set()
         self.projectiles = []
         self.projectile_last_spawn = time.time()
-
+        self.player_data = {
+            '1': {'image': 'images/red.png'},
+            '2': {'image': 'images/pink.png'},
+            '3': {'image': 'images/cyan.png'}
+        }
 
     def get_all_players(self, params=[]):
-        return dict(status='OK', players=list(self.players_face.keys()))
+        return dict(status='OK', players=list(self.active_players))
 
     def get_players_face(self, params=[]):
         pnum = params[0]
         try:
-            return dict(status='OK', face=self.players_face[pnum].decode())
+            if pnum in self.active_players and pnum in self.players_face:
+                return dict(status='OK', face=self.players_face[pnum].decode())
+            return dict(status='ERROR')
         except Exception:
             return dict(status='ERROR')
 
@@ -43,7 +43,9 @@ class PlayerServerInterface:
     def get_location(self, params=[]):
         pnum = params[0]
         try:
-            return dict(status='OK', location=self.players[pnum])
+            if pnum in self.active_players:
+                return dict(status='OK', location=self.players[pnum])
+            return dict(status='ERROR')
         except Exception:
             return dict(status='ERROR')
 
@@ -52,8 +54,30 @@ class PlayerServerInterface:
         pnum = params[0]
         if pnum in self.active_players:
             return dict(status='ERROR', message='Player already in use')
+        if pnum not in self.player_data:
+            return dict(status='ERROR', message='Invalid player number')
+        if len(self.active_players) >= 3:
+            return dict(status='ERROR', message='Game is full')
+
         self.active_players.add(pnum)
+        self.players[pnum] = "100,100"
+        self.players_face[pnum] = base64.b64encode(open(self.player_data[pnum]['image'], "rb").read())
+        self.players.sync()
         return dict(status='OK', player=pnum)
+
+    def leave_game(self, params=[]):
+        pnum = params[0]
+        if pnum in self.active_players:
+            self.active_players.remove(pnum)
+            if pnum in self.ready_status:
+                del self.ready_status[pnum]
+            if pnum in self.players_face:
+                del self.players_face[pnum]
+            if pnum in self.players:
+                del self.players[pnum]
+            self.players.sync()
+            return dict(status='OK')
+        return dict(status='ERROR', message='Player not in game')
 
     def set_ready(self, params=[]):
         pnum = params[0]
