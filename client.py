@@ -73,30 +73,44 @@ class ClientInterface:
     def get_projectiles(self):
         return self.send_command("get_projectiles")
 
+    def get_items(self):
+        return self.send_command("get_items")
+
+    def collide(self):
+        return self.send_command(f"collide {self.idplayer}")
+
+
 class Player:
     def __init__(self, id='1', isremote=False):
         self.id = id
         self.isremote = isremote
         self.x = WIDTH // 2
         self.y = HEIGHT // 2
+        # ATRIBUT
         self.speed = 5
+        self.health = 3
+        # HITBOX
+        self.width = 24
+        self.height = 24
         self.client = ClientInterface(self.id)
         face_data = self.client.get_players_face()
         if face_data and face_data['status'] == 'OK':
-            self.image = pygame.image.load(io.BytesIO(base64.b64decode(face_data['face'])))
+            original_image = pygame.image.load(io.BytesIO(base64.b64decode(face_data['face'])))
+            # Scale down the image to make it smaller
+            self.image = pygame.transform.scale(original_image, (self.width, self.height))
         else:
-            self.image = pygame.Surface((32, 32))
+            self.image = pygame.Surface((self.width, self.height))
             self.image.fill((0, 0, 0))
 
     def move(self, keys):
         if not self.isremote:
-            if keys[pygame.K_UP]:
+            if keys[pygame.K_UP] and self.y > 0:
                 self.y -= self.speed
-            if keys[pygame.K_DOWN]:
+            if keys[pygame.K_DOWN] and self.y < HEIGHT - self.height:
                 self.y += self.speed
-            if keys[pygame.K_LEFT]:
+            if keys[pygame.K_LEFT] and self.x > 0:
                 self.x -= self.speed
-            if keys[pygame.K_RIGHT]:
+            if keys[pygame.K_RIGHT] and self.x < WIDTH - self.width:
                 self.x += self.speed
             self.client.set_location(self.x, self.y)
         else:
@@ -104,6 +118,10 @@ class Player:
             if pos and pos['status'] == 'OK':
                 x, y = pos['location'].split(',')
                 self.x, self.y = int(x), int(y)
+
+    def get_hitbox(self):
+        """Return the hitbox rectangle for collision detection"""
+        return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, surface):
         surface.blit(self.image, (self.x, self.y))
@@ -148,6 +166,19 @@ projectile_image = pygame.Surface((10, 10))
 projectile_image.fill((255, 0, 0))
 projectiles = []
 
+# Health
+heart_image = pygame.Surface((20, 20))
+heart_image.fill((255, 0, 0))
+
+# Item images
+item_health_image = pygame.Surface((16, 16))
+item_health_image.fill((0, 255, 0))
+item_speed_image = pygame.Surface((16, 16))
+item_speed_image.fill((0, 0, 255))
+
+# Items
+items = []
+
 while True:
     screen.fill((255, 255, 255))
 
@@ -171,6 +202,29 @@ while True:
 
     for p in projectiles:
         screen.blit(projectile_image, (p['x'], p['y']))
+
+    items_data = client.get_items()
+    if items_data and items_data['status'] == 'OK':
+        items = items_data['items']
+
+    for item in items:
+        if item['type'] == 'health':
+            screen.blit(item_health_image, (item['x'], item['y']))
+        elif item['type'] == 'speed':
+            screen.blit(item_speed_image, (item['x'], item['y']))
+
+    collision_result = client.collide()
+    if collision_result and collision_result.get('hit'):
+        player.health -= 1
+        print(f"Hit! Health remaining: {player.health}")
+        if player.health <= 0:
+            print("Game Over!")
+
+    for i in range(3):
+        if i < player.health:
+            screen.blit(heart_image, (10 + i * 25, 10))
+        else:
+            pygame.draw.rect(screen, (255, 0, 0), (10 + i * 25, 10, 20, 20), 2)
 
     pygame.display.flip()
     clock.tick(FPS)

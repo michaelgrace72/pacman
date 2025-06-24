@@ -11,12 +11,16 @@ class PlayerServerInterface:
         self.active_players = set()
         self.projectiles = []
         self.projectile_last_spawn = time.time()
+        self.items = []
+        self.item_last_spawn = 0
+        self.player_hit_cooldown = {}
         self.player_data = {
             '1': {'image': 'images/red.png'},
             '2': {'image': 'images/pink.png'},
             '3': {'image': 'images/cyan.png'}
         }
 
+    # PLAYER
     def get_all_players(self, params=[]):
         return dict(status='OK', players=list(self.active_players))
 
@@ -92,6 +96,7 @@ class PlayerServerInterface:
         ready_count = sum(1 for p in self.active_players if self.ready_status.get(p, False))
         return dict(status='OK', ready=(ready_count == len(self.active_players)), player_count=len(self.active_players))
 
+    # PROJECTILE
     def spawn_projectile(self):
         now = time.time()
         if now - self.projectile_last_spawn >= 3:
@@ -130,6 +135,78 @@ class PlayerServerInterface:
     def get_projectiles(self, params=[]):
         self.update_projectiles()
         return dict(status='OK', data=self.projectiles)
+
+    # COLLIDE
+    def collide(self, params=[]):
+        pnum = params[0]
+        if pnum not in self.active_players:
+            return dict(status='ERROR', message='Player not active')
+
+        current_time = time.time()
+        if pnum in self.player_hit_cooldown:
+            if current_time - self.player_hit_cooldown[pnum] < 0.5:
+                return dict(status='OK', hit=False)
+
+        player_location = self.players[pnum].split(',')
+        player_x, player_y = int(player_location[0]), int(player_location[1])
+
+        player_width, player_height = 24, 24
+
+        for i, projectile in enumerate(self.projectiles):
+            proj_x, proj_y = projectile['x'], projectile['y']
+            proj_width, proj_height = 10, 10
+
+            if (player_x < proj_x + proj_width and
+                player_x + player_width > proj_x and
+                player_y < proj_y + proj_height and
+                player_y + player_height > proj_y):
+
+                self.player_hit_cooldown[pnum] = current_time
+
+                self.projectiles.pop(i)
+                return dict(status='OK', hit=True, projectile=projectile)
+
+        return dict(status='OK', hit=False)
+
+    # ITEMS
+    def spawn_item(self):
+        now = time.time()
+        w, h = 640, 480
+
+        if now - self.item_last_spawn > 10:
+            self.item_last_spawn = now
+            x = random.randint(0, w - 32)
+            y = random.randint(0, h - 32)
+            item_type = random.choice(['health', 'speed'])
+
+            item = {
+                'id': len(self.items),
+                'type': item_type,
+                'x': x,
+                'y': y,
+                'spawned_at': now
+            }
+            self.items.append(item)
+            return dict(status='OK', item=item)
+        return dict(status='ERROR', message='Item spawn cooldown not met')
+
+    def get_items(self, params=[]):
+        self.spawn_item()
+        return dict(status='OK', items=self.items)
+
+    def pickup_item(self, params=[]):
+        pnum = params[0]
+        item_id = int(params[1])
+
+        if pnum not in self.active_players:
+            return dict(status='ERROR', message='Player not active')
+
+        for i, item in enumerate(self.items):
+            if item['id'] == item_id:
+                self.items.pop(i)
+                return dict(status='OK', item=item['type'], player=pnum)
+
+        return dict(status='ERROR', message='Item not found')
 
 if __name__ == '__main__':
     p = PlayerServerInterface()
