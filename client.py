@@ -79,6 +79,9 @@ class ClientInterface:
     def collide(self):
         return self.send_command(f"collide {self.idplayer}")
 
+    def pickup_item(self, item_id):
+        return self.send_command(f"pickup_item {self.idplayer} {item_id}")
+
 
 class Player:
     def __init__(self, id='1', isremote=False):
@@ -88,7 +91,12 @@ class Player:
         self.y = HEIGHT // 2
         # ATRIBUT
         self.speed = 5
+        self.base_speed = 5
         self.health = 3
+        self.max_health = 5
+        # SPEED BOOST
+        self.speed_boost_end_time = 0
+        self.is_speed_boosted = False
         # HITBOX
         self.width = 24
         self.height = 24
@@ -96,13 +104,49 @@ class Player:
         face_data = self.client.get_players_face()
         if face_data and face_data['status'] == 'OK':
             original_image = pygame.image.load(io.BytesIO(base64.b64decode(face_data['face'])))
-            # Scale down the image to make it smaller
             self.image = pygame.transform.scale(original_image, (self.width, self.height))
         else:
             self.image = pygame.Surface((self.width, self.height))
             self.image.fill((0, 0, 0))
 
+    def update_speed_boost(self):
+        current_time = time.time()
+        if self.is_speed_boosted and current_time >= self.speed_boost_end_time:
+            self.speed = self.base_speed
+            self.is_speed_boosted = False
+            print("Speed boost ended!")
+
+    def apply_health_boost(self):
+        if self.health < self.max_health:
+            self.health += 1
+            print(f"Health increased! Current health: {self.health}")
+        else:
+            print("Health already at maximum!")
+
+    def apply_speed_boost(self):
+        self.speed = self.base_speed + 3  # Increase speed by 3
+        self.is_speed_boosted = True
+        self.speed_boost_end_time = time.time() + 5.0  # 5 seconds
+
+    def check_item_collision(self, items):
+        player_rect = self.get_hitbox()
+
+        for item in items:
+            item_rect = pygame.Rect(item['x'], item['y'], 16, 16)
+            if player_rect.colliderect(item_rect):
+                pickup_result = self.client.pickup_item(item['id'])
+                if pickup_result and pickup_result.get('status') == 'OK':
+                    item_type = pickup_result.get('item')
+                    if item_type == 'health':
+                        self.apply_health_boost()
+                    elif item_type == 'speed':
+                        self.apply_speed_boost()
+                    return True
+        return False
+
     def move(self, keys):
+        self.update_speed_boost()
+
         if not self.isremote:
             if keys[pygame.K_UP] and self.y > 0:
                 self.y -= self.speed
@@ -120,11 +164,16 @@ class Player:
                 self.x, self.y = int(x), int(y)
 
     def get_hitbox(self):
-        """Return the hitbox rectangle for collision detection"""
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, surface):
         surface.blit(self.image, (self.x, self.y))
+
+        # speed boost indicator
+        if self.is_speed_boosted:
+            remaining_time = self.speed_boost_end_time - time.time()
+            if remaining_time > 0:
+                pygame.draw.rect(surface, (0, 0, 255), (self.x - 2, self.y - 2, self.width + 4, self.height + 4), 2)
 
 # NOTES: ini testing aja
 player_id = input("Enter player ID (1/2/3): ")
@@ -202,10 +251,12 @@ while True:
 
     for p in projectiles:
         screen.blit(projectile_image, (p['x'], p['y']))
-
     items_data = client.get_items()
     if items_data and items_data['status'] == 'OK':
         items = items_data['items']
+
+    if items:
+        player.check_item_collision(items)
 
     for item in items:
         if item['type'] == 'health':
@@ -216,15 +267,21 @@ while True:
     collision_result = client.collide()
     if collision_result and collision_result.get('hit'):
         player.health -= 1
-        print(f"Hit! Health remaining: {player.health}")
         if player.health <= 0:
             print("Game Over!")
 
-    for i in range(3):
+    for i in range(player.max_health):
         if i < player.health:
             screen.blit(heart_image, (10 + i * 25, 10))
         else:
             pygame.draw.rect(screen, (255, 0, 0), (10 + i * 25, 10, 20, 20), 2)
+
+    if player.is_speed_boosted:
+        remaining_time = player.speed_boost_end_time - time.time()
+        if remaining_time > 0:
+            font_small = pygame.font.SysFont(None, 24)
+            speed_text = font_small.render(f"Speed Boost: {remaining_time:.1f}s", True, (0, 0, 255))
+            screen.blit(speed_text, (10, HEIGHT - 30))
 
     pygame.display.flip()
     clock.tick(FPS)
