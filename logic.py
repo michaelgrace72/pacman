@@ -6,7 +6,7 @@ import time
 class PlayerServerInterface:
     def __init__(self):
         self.players = shelve.open('g.db', writeback=True)
-        self.players_face=dict()
+        self.players_face = dict()
         self.ready_status = dict()
         self.active_players = set()
         self.projectiles = []
@@ -19,6 +19,8 @@ class PlayerServerInterface:
             '2': {'image': 'images/pink.png'},
             '3': {'image': 'images/cyan.png'}
         }
+        # SESSION MANAGEMENT
+        self.sessions = {}  # session_id: { 'players': set(), 'ready': dict(), 'started': False }
 
     # PLAYER
     def get_all_players(self, params=[]):
@@ -58,11 +60,13 @@ class PlayerServerInterface:
         pnum = params[0]
         if pnum in self.active_players:
             return dict(status='ERROR', message='Player already in use')
+        # Accept any player name, assign random image if not in player_data
         if pnum not in self.player_data:
-            return dict(status='ERROR', message='Invalid player number')
+            import random
+            img = random.choice(['images/red.png', 'images/pink.png', 'images/cyan.png'])
+            self.player_data[pnum] = {'image': img}
         if len(self.active_players) >= 3:
             return dict(status='ERROR', message='Game is full')
-
         self.active_players.add(pnum)
         self.players[pnum] = "100,100"
         self.players_face[pnum] = base64.b64encode(open(self.player_data[pnum]['image'], "rb").read())
@@ -207,6 +211,66 @@ class PlayerServerInterface:
                 return dict(status='OK', item=item['type'], player=pnum)
 
         return dict(status='ERROR', message='Item not found')
+
+    # SESSION MANAGEMENT
+    def create_session(self, params=[]):
+        session_id = params[0]
+        if session_id in self.sessions:
+            return dict(status='ERROR', message='Session already exists')
+        self.sessions[session_id] = {
+            'players': set(),
+            'ready': dict(),
+            'started': False
+        }
+        return dict(status='OK', session=session_id)
+
+    def join_session(self, params=[]):
+        session_id, pnum = params[0], params[1]
+        if session_id not in self.sessions:
+            return dict(status='ERROR', message='Session does not exist')
+        session = self.sessions[session_id]
+        if pnum in session['players']:
+            return dict(status='ERROR', message='Player already in session')
+        if len(session['players']) >= 3:
+            return dict(status='ERROR', message='Session is full')
+        # Accept any player name, assign random image if not in player_data
+        if pnum not in self.player_data:
+            import random
+            img = random.choice(['images/red.png', 'images/pink.png', 'images/cyan.png'])
+            self.player_data[pnum] = {'image': img}
+        session['players'].add(pnum)
+        session['ready'][pnum] = False
+        self.players[pnum] = "100,100"
+        self.players_face[pnum] = base64.b64encode(open(self.player_data[pnum]['image'], "rb").read())
+        self.players.sync()
+        return dict(status='OK', session=session_id, player=pnum)
+
+    def set_ready_in_session(self, params=[]):
+        session_id, pnum = params[0], params[1]
+        if session_id not in self.sessions:
+            return dict(status='ERROR', message='Session does not exist')
+        session = self.sessions[session_id]
+        if pnum not in session['players']:
+            return dict(status='ERROR', message='Player not in session')
+        session['ready'][pnum] = True
+        return dict(status='OK')
+
+    def is_ready_in_session(self, params=[]):
+        session_id = params[0]
+        if session_id not in self.sessions:
+            return dict(status='ERROR', message='Session does not exist')
+        session = self.sessions[session_id]
+        if not session['players']:
+            return dict(status='OK', ready=False, player_count=0)
+        ready_count = sum(1 for p in session['players'] if session['ready'].get(p, False))
+        all_ready = (ready_count == len(session['players']) and len(session['players']) > 0)
+        if all_ready:
+            session['started'] = True
+        return dict(status='OK', ready=all_ready, player_count=len(session['players']))
+
+    def get_sessions(self, params=[]):
+        # List all sessions and their player counts
+        return dict(status='OK', sessions={sid: len(s['players']) for sid, s in self.sessions.items()})
 
 if __name__ == '__main__':
     p = PlayerServerInterface()
