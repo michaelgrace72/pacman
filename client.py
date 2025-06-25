@@ -6,6 +6,7 @@ import logging
 import json
 import base64
 import time
+import math
 
 pygame.init()
 WIDTH, HEIGHT = 640, 480
@@ -13,6 +14,14 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Progjar Multiplayer Game")
 clock = pygame.time.Clock()
 FPS = 60
+
+# Load background image
+try:
+    background_image = pygame.image.load('images/background.png')
+    background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
+except pygame.error:
+    background_image = pygame.Surface((WIDTH, HEIGHT))
+    background_image.fill((255, 255, 255))
 
 class ClientInterface:
     def __init__(self, idplayer='1'):
@@ -92,16 +101,16 @@ class Player:
         self.x = WIDTH // 2
         self.y = HEIGHT // 2
         # ATRIBUT
-        self.speed = 5
-        self.base_speed = 5
-        self.health = 3
-        self.max_health = 3
+        self.speed = 7
+        self.base_speed = 7
+        self.health = 4
+        self.max_health = 4
         # SPEED BOOST
         self.speed_boost_end_time = 0
         self.is_speed_boosted = False
         # HITBOX
-        self.width = 24
-        self.height = 24
+        self.width = 52
+        self.height = 52
         self.client = ClientInterface(self.id)
         face_data = self.client.get_players_face()
         if face_data and face_data['status'] == 'OK':
@@ -116,14 +125,10 @@ class Player:
         if self.is_speed_boosted and current_time >= self.speed_boost_end_time:
             self.speed = self.base_speed
             self.is_speed_boosted = False
-            print("Speed boost ended!")
 
     def apply_health_boost(self):
         if self.health < self.max_health:
             self.health += 1
-            print(f"Health increased! Current health: {self.health}")
-        else:
-            print("Health already at maximum!")
 
     def apply_speed_boost(self):
         self.speed = self.base_speed + 3
@@ -174,8 +179,26 @@ class Player:
         # speed boost indicator
         if self.is_speed_boosted:
             remaining_time = self.speed_boost_end_time - time.time()
+            # Efek gradien pulsing
             if remaining_time > 0:
-                pygame.draw.rect(surface, (0, 0, 255), (self.x - 2, self.y - 2, self.width + 4, self.height + 4), 2)
+                center_x = self.x + self.width // 2
+                center_y = self.y + self.height // 2
+
+                base_radius = 40
+                pulse = math.sin(pygame.time.get_ticks() * 0.01) * 5
+                outer_radius = int(base_radius + pulse)
+                inner_radius = int(base_radius - 8 + pulse)
+
+                for i in range(inner_radius, outer_radius, 2):
+                    # Hitung alpha berdasarkan jarak dari inner radius
+                    distance_ratio = (i - inner_radius) / (outer_radius - inner_radius)
+                    alpha = int(200 * (1 - distance_ratio))
+
+                    color = (255, 255 - int(distance_ratio * 100), 0, alpha)
+
+                    ring_surf = pygame.Surface((i*2 + 4, i*2 + 4), pygame.SRCALPHA)
+                    pygame.draw.circle(ring_surf, color, (i + 2, i + 2), i, 1)
+                    surface.blit(ring_surf, (center_x - i - 2, center_y - i - 2))
 
 def select_id_screen():
     isSelect = True
@@ -343,20 +366,19 @@ projectiles = []
 game_over = False
 
 # Health
-heart_image = pygame.Surface((20, 20))
-heart_image.fill((255, 0, 0))
+heart_full_image = pygame.image.load('images/heart_full.png')
+heart_blank_image = pygame.image.load('images/heart_blank.png')
 
 # Item images
-item_health_image = pygame.Surface((16, 16))
-item_health_image.fill((0, 255, 0))
-item_speed_image = pygame.Surface((16, 16))
-item_speed_image.fill((0, 0, 255))
+item_health_image = pygame.transform.scale(pygame.image.load('images/potion_red.png'), (24, 24))
+item_speed_image = pygame.transform.scale(pygame.image.load('images/energy.png'), (24, 24))
 
 # Items
 items = []
 
 while True:
-    screen.fill((255, 255, 255))
+    # Draw background image instead of solid color
+    screen.blit(background_image, (0, 0))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -423,16 +445,16 @@ while True:
 
         for i in range(player.max_health):
             if i < player.health:
-                screen.blit(heart_image, (10 + i * 25, 10))
+                screen.blit(heart_full_image, (10 + i * 25, 10))
             else:
-                pygame.draw.rect(screen, (255, 0, 0), (10 + i * 25, 10, 20, 20), 2)
+                screen.blit(heart_blank_image, (10 + i * 25, 10))
 
-        if player.is_speed_boosted:
-            remaining_time = player.speed_boost_end_time - time.time()
-            if remaining_time > 0:
-                font_small = pygame.font.SysFont(None, 24)
-                speed_text = font_small.render(f"Speed Boost: {remaining_time:.1f}s", True, (0, 0, 255))
-                screen.blit(speed_text, (10, HEIGHT - 30))
+        # if player.is_speed_boosted:
+        #     remaining_time = player.speed_boost_end_time - time.time()
+        #     if remaining_time > 0:
+        #         font_small = pygame.font.SysFont(None, 24)
+        #         speed_text = font_small.render(f"Speed Boost: {remaining_time:.1f}s", True, (0, 0, 255))
+        #         screen.blit(speed_text, (10, HEIGHT - 30))
 
     if game_over:
         client.leave_game()
