@@ -100,7 +100,7 @@ class PlayerServerInterface:
     def spawn_projectile(self):
         now = time.time()
         if now - self.projectile_last_spawn >= 3:
-            spawn = random.randint(1, 5)
+            spawn = random.randint(1, 8)
 
             for _ in range(spawn):
                 edge = random.choice(['top', 'bottom', 'left', 'right'])
