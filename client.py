@@ -360,8 +360,8 @@ if players_list and players_list['status'] == 'OK':
         if pid != player_id:
             other_players[pid] = Player(pid, isremote=True)
 
-projectile_image = pygame.Surface((10, 10))
-projectile_image.fill((255, 0, 0))
+projectile_image = pygame.Surface((10, 10), pygame.SRCALPHA)
+pygame.draw.circle(projectile_image, (255, 0, 0), (5, 5), 5)
 projectiles = []
 game_over = False
 
@@ -377,7 +377,6 @@ item_speed_image = pygame.transform.scale(pygame.image.load('images/energy.png')
 items = []
 
 while True:
-    # Draw background image instead of solid color
     screen.blit(background_image, (0, 0))
 
     for event in pygame.event.get():
@@ -385,9 +384,8 @@ while True:
             pygame.quit()
             sys.exit()
         if event.type == pygame.MOUSEBUTTONDOWN and game_over:
-            # Handle clicks on game over screen
             mouse_pos = pygame.mouse.get_pos()
-            # Create button rect for collision detection
+
             button_width, button_height = 200, 60
             button_x = WIDTH // 2 - button_width // 2
             button_y = HEIGHT // 2 + 50
