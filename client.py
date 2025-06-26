@@ -101,10 +101,10 @@ class Player:
         self.x = WIDTH // 2
         self.y = HEIGHT // 2
         # ATRIBUT
-        self.speed = 7
+        self.speed = 5
         self.base_speed = 7
-        self.health = 4
-        self.max_health = 4
+        self.health = 3
+        self.max_health = 3
         # SPEED BOOST
         self.speed_boost_end_time = 0
         self.is_speed_boosted = False

@@ -2,6 +2,7 @@ import base64
 import random
 import shelve
 import time
+import threading
 
 class PlayerServerInterface:
     def __init__(self):
@@ -19,6 +20,8 @@ class PlayerServerInterface:
             '2': {'image': 'images/UFO-2.png'},
             '3': {'image': 'images/UFO-3.png'}
         }
+        self.projectile_lock = threading.Lock()
+        self.item_lock = threading.Lock()
 
     # PLAYER
     def get_all_players(self, params=[]):
@@ -95,34 +98,35 @@ class PlayerServerInterface:
 
     # PROJECTILE
     def spawn_projectile(self):
-        now = time.time()
-        if now - self.projectile_last_spawn >= 3:
-            spawn = random.randint(1, 5)
+        with self.projectile_lock:
+            now = time.time()
+            if now - self.projectile_last_spawn >= 3 and len(self.projectiles) < 10:
+                spawn = random.randint(1, 5)
 
-            new_projectiles = []
-            for _ in range(spawn):
-                edge = random.choice(['top', 'bottom', 'left', 'right'])
-                if edge == 'top':
-                    x, y = random.randint(0, 640), 0
-                    dx = random.randint(-5, 5)
-                    dy = 10
-                elif edge == 'bottom':
-                    x, y = random.randint(0, 640), 480
-                    dx = random.randint(-5, 5)
-                    dy = -10
-                elif edge == 'left':
-                    x, y = 0, random.randint(0, 480)
-                    dx = 10
-                    dy = random.randint(-5, 5)
-                else:
-                    x, y = 640, random.randint(0, 480)
-                    dx = -10
-                    dy = random.randint(-5, 5)
+                new_projectiles = []
+                for _ in range(spawn):
+                    edge = random.choice(['top', 'bottom', 'left', 'right'])
+                    if edge == 'top':
+                        x, y = random.randint(0, 640), 0
+                        dx = random.randint(-2, 2)
+                        dy = 5
+                    elif edge == 'bottom':
+                        x, y = random.randint(0, 640), 480
+                        dx = random.randint(-2, 2)
+                        dy = -5
+                    elif edge == 'left':
+                        x, y = 0, random.randint(0, 480)
+                        dx = 5
+                        dy = random.randint(-2, 2)
+                    else:
+                        x, y = 640, random.randint(0, 480)
+                        dx = -5
+                        dy = random.randint(-2, 2)
 
-                new_projectiles.append({"x": x, "y": y, "dx": dx, "dy": dy})
+                    new_projectiles.append({"x": x, "y": y, "dx": dx, "dy": dy})
 
-            self.projectiles.extend(new_projectiles)
-            self.projectile_last_spawn = now
+                self.projectiles.extend(new_projectiles)
+                self.projectile_last_spawn = now
 
     def update_projectiles(self):
         self.spawn_projectile()
@@ -171,22 +175,23 @@ class PlayerServerInterface:
         now = time.time()
         w, h = 640, 480
 
-        if now - self.item_last_spawn > 10:
-            x = random.randint(0, w - 32)
-            y = random.randint(0, h - 32)
-            item_type = random.choice(['health', 'speed'])
+        with self.item_lock:
+            if now - self.item_last_spawn > 10 and len(self.items) < 5:
+                x = random.randint(0, w - 32)
+                y = random.randint(0, h - 32)
+                item_type = random.choice(['health', 'speed'])
 
-            item = {
-                'id': len(self.items),
-                'type': item_type,
-                'x': x,
-                'y': y,
-                'spawned_at': now
-            }
-            self.items.append(item)
-            self.item_last_spawn = now
-            return dict(status='OK', item=item)
-        return dict(status='ERROR', message='Item spawn cooldown not met')
+                item = {
+                    'id': len(self.items),
+                    'type': item_type,
+                    'x': x,
+                    'y': y,
+                    'spawned_at': now
+                }
+                self.items.append(item)
+                self.item_last_spawn = now
+                return dict(status='OK', item=item)
+            return dict(status='ERROR', message='Item spawn cooldown not met')
 
     def get_items(self, params=[]):
         self.spawn_item()
