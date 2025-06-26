@@ -6,7 +6,7 @@ import threading
 
 class PlayerServerInterface:
     def __init__(self):
-        self.players = shelve.open('g.db', writeback=True)
+        self.players = {}
         self.players_face=dict()
         self.ready_status = dict()
         self.active_players = set()
@@ -48,7 +48,6 @@ class PlayerServerInterface:
                 with self.active_players_lock:
                     if pnum in self.active_players:
                         self.players[pnum] = f"{x},{y}"
-                        self.players.sync()
                         return dict(status='OK', player=pnum)
                     return dict(status='ERROR', message='Player not active')
         except Exception:
@@ -80,7 +79,6 @@ class PlayerServerInterface:
                 self.active_players.add(pnum)
                 self.players[pnum] = "100,100"
                 self.players_face[pnum] = self.player_data[pnum]['image']
-                self.players.sync()
                 return dict(status='OK', player=pnum)
 
     def leave_game(self, params=[]):
@@ -95,7 +93,6 @@ class PlayerServerInterface:
                         del self.players_face[pnum]
                     if pnum in self.players:
                         del self.players[pnum]
-                    self.players.sync()
                     return dict(status='OK')
                 return dict(status='ERROR', message='Player not in game')
 

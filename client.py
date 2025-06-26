@@ -26,7 +26,7 @@ except pygame.error:
 class ClientInterface:
     def __init__(self, idplayer='1'):
         self.idplayer = idplayer
-        self.server_address = ('127.0.0.1', 55555)
+        self.server_address = ('8.215.21.198', 55555)
 
     def send_command(self,command_str=""):
         global server_address
