@@ -36,7 +36,7 @@ class PlayerServerInterface:
         try:
             with self.active_players_lock:
                 if pnum in self.active_players and pnum in self.players_face:
-                    return dict(status='OK', face=self.players_face[pnum].decode())
+                    return dict(status='OK', face=self.players_face[pnum])
                 return dict(status='ERROR')
         except Exception:
             return dict(status='ERROR')
@@ -79,7 +79,7 @@ class PlayerServerInterface:
 
                 self.active_players.add(pnum)
                 self.players[pnum] = "100,100"
-                self.players_face[pnum] = base64.b64encode(open(self.player_data[pnum]['image'], "rb").read())
+                self.players_face[pnum] = self.player_data[pnum]['image']
                 self.players.sync()
                 return dict(status='OK', player=pnum)
 
