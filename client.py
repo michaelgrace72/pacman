@@ -52,7 +52,7 @@ class ClientInterface:
             # at this point, data_received (string) will contain all data coming from the socket
             # to be able to use the data_received as a dict, need to load it using json.loads()
             hasil = json.loads(data_received)
-            logging.warning("data received from server:")
+            logging.warning("data received from server:", hasil)
             return hasil
         except:
             logging.warning("error during data receiving")
@@ -114,7 +114,7 @@ class Player:
         self.client = ClientInterface(self.id)
         face_data = self.client.get_players_face()
         if face_data and face_data['status'] == 'OK':
-            original_image = pygame.image.load(io.BytesIO(base64.b64decode(face_data['face'])))
+            original_image = pygame.image.load(face_data['face'])
             self.image = pygame.transform.scale(original_image, (self.width, self.height))
         else:
             self.image = pygame.Surface((self.width, self.height))
