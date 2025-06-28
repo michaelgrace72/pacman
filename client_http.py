@@ -3,7 +3,7 @@ import json
 import logging
 
 class ClientHTTPInterface:
-    def __init__(self, idplayer='1', host='localhost', port=8889):
+    def __init__(self, idplayer='1', host='localhost', port=55555):
         self.idplayer = idplayer
         self.host = host
         self.port = port
@@ -109,7 +109,7 @@ class ClientHTTPInterface:
 
 class ClientInterface(ClientHTTPInterface):
     def __init__(self, idplayer='1'):
-        super().__init__(idplayer, 'localhost', 8889)
+        super().__init__(idplayer, 'localhost', 55555)
 
     def send_command(self, command_str=""):
         parts = command_str.strip().split()

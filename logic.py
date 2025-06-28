@@ -100,7 +100,7 @@ class PlayerServerInterface:
     def spawn_projectile(self):
         with self.projectile_lock:
             now = time.time()
-            if now - self.projectile_last_spawn >= 3 and len(self.projectiles) < 10:
+            if now - self.projectile_last_spawn >= 3 and len(self.projectiles) < 7:
                 spawn = random.randint(1, 5)
 
                 new_projectiles = []
